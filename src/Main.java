@@ -57,17 +57,18 @@ public class Main {
 						+ "***************************\n\n");
 			}
 			
-			/*
+			
 			if (karprabin) {
 				long startTime = System.nanoTime();
-				LinkedList<Integer> res = Naive.naive(text,query);
+				LinkedList<Integer> res = KarpRabin.karprabin(text, query);
 				long endTime = System.nanoTime();
 				System.out.println("********** Karp-Rabin **********\n"
-						+ "Result:" + res.toString() + "\n"
-						+ "Time:" + (endTime - startTime)/1000000 + "\n"
+						+ "Result: " + res.toString() + "\n"
+						+ "Time: " + (endTime - startTime)/1000000 + " ms\n"
 						+ "********************************\n\n");
 			}
 			
+			/*
 			if (kmp) {
 				long startTime = System.nanoTime();
 				LinkedList<Integer> res = Naive.naive(text,query);
