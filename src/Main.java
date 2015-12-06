@@ -68,17 +68,18 @@ public class Main {
 						+ "********************************\n\n");
 			}
 			
-			/*
+			
 			if (kmp) {
 				long startTime = System.nanoTime();
-				LinkedList<Integer> res = Naive.naive(text,query);
+				LinkedList<Integer> res = KnuthMorrisPratt.kmp(text,query);
 				long endTime = System.nanoTime();
 				System.out.println("********** Knuth-Morris-Pratt **********\n"
-						+ "Result:" + res.toString() + "\n"
-						+ "Time:" + (endTime - startTime)/1000000 + "\n"
+						+ "Result: " + res.toString() + "\n"
+						+ "Time: " + (endTime - startTime)/1000000 + " ms\n"
 						+ "****************************************\n\n");
 			}
 			
+			/*
 			if (boyermoore) {
 				long startTime = System.nanoTime();
 				LinkedList<Integer> res = Naive.naive(text,query);
