@@ -1,0 +1,770 @@
+\documentclass[a4paper,11pt,openany,extrafontsizes,twoside,article]{memoir}
+
+\input{preamble}
+
+\begin{document}
+
+\pagestyle{Ruled}
+\tightlists{}
+
+\maketitle
+
+%% Style de chapitre
+%\chapterstyle{hangnum}
+
+\begin{abstract}
+  In this report, we will present four algorithms for the exact string
+  matching problem: the naive algorithm, and the algorithms from
+  Karp-Rabin~\cite{karp1987efficient},
+  Knuth-Morris-Pratt~\cite{knuth1977fast}, and
+  Boyer-Moore~\cite{boyer1977fast}. We also present a standard
+  implementation of these algorithms in Java, and some complexity and
+  peformance analysis.
+\end{abstract}
+
+\tableofcontents*
+
+\chapter{Problem statement}
+\label{cha:problem-statement}
+
+In all algorithm descriptions and implementation, we will consider a
+string $S$ of length $n$, which represents the text to search, and a
+pattern $q$ of length $m$. The algorithms will have to find all the
+\emph{exact matches} of the pattern in the text, and return a list of
+positions at which the pattern occurs in the text.
+
+We chose to implement the various algorithms in Java. The testing has
+been done with large texts, such as the novels \emph{Mysterious
+  Island} by Jules Verne or \emph{War and Peace} by Tolstoy, but also
+with the (large) genomes of \emph{Fibrobacter succinogenes} and
+\emph{Aspergillus fumigatus}. That way, we were able to test our
+implementations against text and patterns of various absolute and
+relative size, and with various alphabet sizes (we will see later how
+this can be important for performance analysis).
+
+Our code has been written using the Git version control system. Its
+repository is hosted on Bitbucket at
+\url{https://bitbucket.org/dlozeve/needlehaystack}.
+
+\chapter{Testing interface}
+\label{cha:testing-interface}
+
+In order to easily test our algorithms, we created a class
+\mintinline{java}|Main| which allowed us to test and compare the
+performance of various algorithms using simple command-line arguments.
+
+After reading the text file and the pattern (given as a simple string
+argument), we parse the command-line options, activating the
+algorithms chosen by the user. A simple test function with timing for
+an algorithm looks like this (here for Knuth-Morris-Pratt):
+
+\begin{minted}{java}
+if (kmp) {
+    long startTime = System.nanoTime();
+    LinkedList<Integer> res = KnuthMorrisPratt.kmp(text,query);
+    long endTime = System.nanoTime();
+    System.out.println("********** Knuth-Morris-Pratt **********\n"
+        + "Result: " + res.toString() + "\n"
+        + "Time: " + (endTime - startTime)/1000000 + " ms\n"
+        + "****************************************\n\n");
+}
+\end{minted}
+
+The main function thus gives us an output like this:
+
+\begin{minted}{text}
+********** Knuth-Morris-Pratt **********
+Result: [29218957]
+Time: 213 ms
+****************************************
+\end{minted}
+
+\chapter{Naive algorithm}
+\label{cha:naive-algorithm}
+
+\section{Description}
+\label{sec:description}
+
+The naive algorithm consists simply in trying all the positions for
+the pattern in the text, and at each position, test the equality of
+each character in the pattern with the corresponding character in the
+text.
+
+\section{Implementation}
+\label{sec:implementation}
+
+\begin{minted}{java}
+    public static LinkedList<Integer> naive(String s, String q) {
+        LinkedList<Integer> res = new LinkedList<>();
+
+        int n = s.length();
+        int m = q.length();		
+
+        for (int i = 0; i < n-m; i++) {
+            if (s.substring(i, i+m).equals(q)) {
+                res.add(i);
+            }
+        }
+        return res;		
+    }
+\end{minted}
+
+Here we used the method \mintinline{java}|String.substring(int, int)|
+in order to get a more simple and concise version of the
+algorithm. However, it should be mentioned that this is internally
+equivalent to a loop testing each character one after the other. Thus,
+this does not affect the complexity of the algorithm.
+
+In order to retrieve and return all the positions, we use a
+doubly-linked list, as implemented in the standard library class
+\mintinline{java}|java.util.LinkedList|\footnote{\url{https://docs.oracle.com/javase/8/docs/api/java/util/LinkedList.html}}. This
+allows us to add to our result the occurrences found, without being
+limited in the number of such occurrences. This approach will be used
+throughout all the algorithms subsequently implemented.
+
+\section{Test and performance analysis}
+\label{sec:test-perf-analys}
+
+The worst-case complexity of the naive algorithm is obviously
+$\mathcal{O}(nm)$. Even a slight increase in the pattern length can lead to
+unpractical running times. This algorithm is particularly not adapted
+for genome searches, where one often needs to search extremely long
+texts with long patterns (e.g.\ to locate a particular gene).
+
+For instance, for a search of a 1474-character pattern in
+\emph{aspergillus fumigatus} genome, the naive algorithm runs in more
+than 10 seconds, on a recent computer.
+
+
+\chapter{Karp-Rabin algorithm}
+\label{cha:karp-rabin-algorithm}
+
+\section{Description}
+\label{sec:description-1}
+
+The Karp-Rabin algorithm is described as a \emph{semi-numerical}
+algorithm, because it uses hash codes in order to speed up
+comparisons. The hash code is a very simple in this case; it is
+defined by:
+\[ h(q) = \sum_{i=0}^{m-1} q_i 2^{m-i-1} \bmod w, \] where $q_i$ is
+the numerical value of the $i$-th character in $q$, and w is a (large)
+prime.
+
+This hash function is very convenient because we can compute easily
+and cheaply the hash for $s[i+1..i+m]$ knowing the hash for
+$s[i..i+m-1]$, by simple constant-time operations (modular
+substractions, additions and binary shifts).
+
+When looping through the text, we only compare the hashes. There is
+only need to check for an occurrence character by character if the
+hashes match, otherwise we are sure that the substrings are different.
+
+\section{Implementation and limitations}
+\label{sec:impl-limit}
+
+We compute the hash function in linear-time:
+
+\begin{minted}{java}
+    public static int hash (String s, int w) {
+        int hash = 0;
+        int m = s.length();
+        int power = 1;
+
+        for (int i = m-1; i >= 0; i--) {
+            hash = (hash +  s.charAt(i)*power) % w;
+            power = power*2;
+        }
+        return hash;
+    }
+\end{minted}
+
+Note that this function is only needed twice: for the pattern and for
+the first part of the text. After that, we only need to update the
+current hash to follow the text.
+
+The rest of the implementation is pretty straightforward, and not very
+different from the naive algorithm. Here is the central part, where
+the hash is updated:
+
+\begin{minted}{java}
+        // We'll need this in the loop, so we only compute it once.
+        int pow = (int) Math.pow(2, m-1);
+
+        for (int i = 0; i < n-m; i++) {
+            if (hash == queryHash && s.substring(i, i+m).equals(q)) {
+                res.add(i);
+            }
+            // Update the hash
+            hash = ((hash - s.charAt(i)*pow)*2 + s.charAt(i+m)) % w;
+        }
+\end{minted}
+
+This algorithm leads to a significant improvement over the naive
+algorithm. However, it suffers from a huge implementation problem: the
+\mintinline{java}|int| type is bounded. Because of this issue, present
+in most languages, we cannot search for patterns too long (namely,
+longer than 32 characters), because the value $2^{m-1}$ used to update
+the hash would be greater than the maximum \mintinline{java}|int|
+value.
+
+In order to solve this issue, we might replace the
+\mintinline{java}|int| type with the unbounded
+\mintinline{java}|BigInteger|
+class\footnote{\url{https://docs.oracle.com/javase/8/docs/api/java/math/BigInteger.html}},
+part of the \mintinline{java}|java.math| library. The implementation
+becomes more difficult, and less readable (use of methods like
+\mintinline{java}|BigInteger.multiply(BigInteger, BigInteger)| instead
+of simply \mintinline{java}|*|), but it allows the algorithm to work
+for any pattern length. However, it is not clear whether the trade-off
+in complexity (\mintinline{java}|BigInteger| is considerably slower
+than normal \mintinline{java}|int|) is worth the trouble. It is our
+opinion that it is easier \emph{and} better to use one of the
+following algorithms instead.
+
+\chapter{Knuth-Morris-Pratt algorithm}
+\label{cha:knuth-morris-pratt}
+
+\section{Description}
+\label{sec:description-3}
+
+The Knuth-Morris-Pratt algorithm preprocesses the pattern to be
+searched for before performing the actual search. More precisely, for
+each position $j$, the alorithm stores the index of the largest prefix
+of $q$ that is also a suffix of $q[0..j-1]$, called
+$\mathtt{next}(j)$. It then uses this information to check each
+character in the text only once.
+
+\subsection{Preprocessing}
+\label{sec:preprocessing}
+
+The principle of the preprocessing derives from a simple observation:
+if the prefix $q[0..\mathtt{next}(k)]$ is a suffix of $q[0..k]$, then
+$q[0..\mathtt{next}(k)-1]$ is a suffix of $q[0..k-1]$. As such, if
+$\mathtt{next}(i)$ is known for $i$ from $0$ to $k-1$, we can compute
+$\mathtt{next}(k)$ as follows: if $q[0..\mathtt{next}(k-1)-1]$ is a
+suffix for $q[0..k]$, it is necessarily the longest one (otherwise
+there would be a longer prefix of $q$ that is also a suffix of
+$q[0..k-1]$, which is impossible by definition of
+$\mathtt{next}(k-1)$). If it is not, the next possibility is a prefix
+of $q[0..\mathtt{next}(k-1)-1]$ that is also a suffix of $q[0..k-1]$
+and thus of $q[0..\mathtt{next}(k-1)-1]$ for length reasons. For this
+reason we retrieve $\mathtt{next}(\mathtt{next}(k-1)-1)$ and proceed
+to the same checks, and so on until we find a fitting prefix or
+exhaust all possibilities.
+
+\subsection{Search}
+\label{sec:search}
+
+Once the preprocessing is complete, the search is quite
+straightforward. Suppose we are checking $S$ at position $i$ to
+compare it with position $k$ in q. Two possibilities can arise:
+\begin{itemize}
+\item The characters match. In that case we can advance to the next
+  position in both the pattern and the text. If the end of the pattern
+  has been reached, we have found a new occurence.
+\item There is a mismatch. In that case, if there is an occurence of
+  $q$ in $S$ beginning at position $i-k < j < i$, the substring
+  between $i-1$ and $j$ is both a prefix of $q$ and a suffix of
+  $q[0..k-1]$. Consequently, we resume our check starting at position
+  $\mathtt{next}(k-1)$ in $q$.
+\end{itemize}
+
+\section{Implementation}
+\label{sec:implementation-2}
+
+\begin{minted}{java}
+    public static int[] preprocess (String q) {
+        int m = q.length();
+        // next[k] stores the length of the maximal substring of q
+        // ending at k that matches a prefix of q.
+        int[] next = new int[m];
+        // l is the length we want to compute.
+        int l = 0;
+
+        // We go through the string with k.
+        for (int k=1; k<m; k++) {
+            // At each point, we compare the next character in q
+            // with the next character after the prefix already computed.
+            // If they do not match, we check again for a smaller prefix,
+            // (that is identical to a suffix of the previous prefix).
+            // If the previous prefix was q[0..l-1],
+            // the new prefix will be q[0..next[l-1]].
+            while (l > 0 && q.charAt(l) != q.charAt(k)) {
+                l = next[l-1];
+            }
+            // If the characters match, we can increment the prefix length.
+            if (q.charAt(l) == q.charAt(k)) {
+                l++;
+            }
+            // We can now store the computed prefix length in the array:
+            next[k] = l;
+        }
+        return next;
+    }
+
+    public static LinkedList<Integer> kmp (String s, String q) {
+        LinkedList<Integer> res = new LinkedList<>();
+        int n = s.length();
+        int m = q.length();
+        int[] next = preprocess(q);
+
+        // This is nearly the same algorithm as in preprocessing.
+        // But this time, we have *two* strings to compare.
+
+        // k represents the length of the maximal prefix of q
+        // that matches a substring of s beginning at i.
+        int k = 0;
+
+        // i is the position in s.
+        for (int i =0; i<n; i++) {
+            // If the next characters do not match,
+            // we shift q of the maximal amount possible,
+            // using the array next computed during prepocessing.
+            while (k > 0 && q.charAt(k) != s.charAt(i)) {
+                k = next[k-1];
+            }
+            // If the next characters do match,
+            // we go to the next characters (of both strings).
+            if (q.charAt(k) == s.charAt(i)) {
+                k++;
+            }
+            // When k==m, we have reached the end of q,
+            // and so we have found a match!
+            if (k == m) {
+                res.add(i-k+1);
+                // We can go now to the next step to find the next match.
+                k = next[k-1];
+            }
+        }
+        return res;
+    }
+\end{minted}
+
+\section{Performance analysis}
+\label{sec:performance-analysis}
+
+\subsection{Preprocessing}
+\label{sec:preprocessing-1}
+
+At any step in the algorithm, two situations can arise. If the
+operation is performed as a part of the \mintinline{java}|while| loop,
+$l$ decreases while $k$ is unchanged, thus $k-l$ increases. When the
+\mintinline{java}|while| loop ends, $k$ increases by one and $l$
+increases by at most one. As such, $k-l$ does not decrease. We see
+that in any case, both $k$ and $k-l$ are nondecreasing and at least
+one of these quantities increases strictly. Since both are bounded by
+$m$ the length of $q$, this shows that the preprocessing is in
+complexity $\mathcal{O}(m)$.
+
+\subsection{Search}
+\label{sec:search-1}
+
+The arguments for the complexity of the search are mostly the same as
+those for the preprocessing. At each step, either the position $i$ or
+$i-k$ (the starting position of the occurence being checked)
+increases, leading to complexity $\mathcal{O}(n)$.
+
+
+\chapter{Boyer-Moore algorithm}
+\label{cha:boyer-moore-algor}
+
+\section{Description}
+\label{sec:description-2}
+
+The ideas behind the Boyer-Moore algorithms derive from the fact that
+even if Knuth-Morris-Pratt has a worst-case linear time complexity, we
+still go through every character in the text, either to compare it to
+the pattern or to determine that we don't need to compare
+it. Boyer-Moore uses a \emph{right-to-left} scan, which allows
+skipping some parts.
+
+Moreover, it combines two different rules to determine the shift at
+each step, the \emph{bad character rule} and the \emph{good suffix
+  rule}.
+
+\subsection{Bad character rule}
+\label{sec:bad-character-rule}
+
+When scanning from right to left the pattern against the text, we
+encounter two different characters. The idea is to shift the pattern
+$q$ (to the right) in order to match the rightmost occurrence of the
+last matched character with the corresponding character in $S$.
+
+For this, we need to build a table of the rightmost position in $q$ of
+all the letters in the alphabet. However, this simple version of the
+bad character rule does not allow for shifting when we are already on
+the left of the rightmost character.
+
+That is why we chose to implement the \emph{extended} bad character
+rule: each cell in the array will contain not only the rightmost
+position of the character, but a list of the position of the character
+in $q$, sorted from right to left.
+
+Thus, when we reach a mismatch, we can look for the rightmost
+occurrence of the last matched character, on the left of the current
+position, simply by going through the list.
+
+The preprocessing for this rule is easy and can be realised in linear
+time, that is $\mathcal{O}(m)$. It is indeed enough to go once through the
+pattern, appending the current position to the list corresponding to
+the current character.
+
+\subsection{Good suffix rule}
+\label{sec:good-suffix-rule}
+
+We can easily observe that the bad character rule is not enough by
+itself to achieve good performance (it is not even enough to prove
+linear-time complexity). It is particularly limited when the alphabet
+is small (in genomes for instance, when the alphabet is reduced to
+letters A, T, C and G).
+
+Therefore, the good suffix rule can achieve much better results, when
+allied to the bad character rule. It is defined like this:
+\begin{itemize}
+\item If a substring of $S$ matches a suffix $t$ of $q$, but a mismatch
+  occurs at the next comparison on the left:
+  \begin{itemize}
+  \item If it exists, find the rightmost copy $t'$ of $t$ in $q$, such
+    that the character left of $t'$ is different from the character
+    left of $t$, and shift so that $t'$ matches the substring of $S$;
+  \item If such a copy does not exist, find the longest suffix of $t$
+    that is also a prefix of $q$ (this is called a \emph{border}), and
+    shift $q$ accordingly;
+  \item Otherwise, shift $q$ by $m$ places.
+  \end{itemize}
+\item If an occurrence of $q$ has been found in $S$:
+  \begin{itemize}
+  \item Find the largest proper border of $q$, and shift $q$ so that
+    the prefix match the suffix in $S$;
+  \item If such a border does not exist, shift $q$ by m places.
+  \end{itemize}
+\end{itemize}
+
+The preprocessing for this rule is much more complicated, but can
+nevertheless be done in $\mathcal{O}(m)$ time. We shall see the details of the
+algorithm while reviewing the implementation.
+
+\subsection{Combining the rules}
+\label{sec:combining-rules}
+
+By shifting according to one of these rules, we are guaranteed that we
+will not miss any occurrence of $q$ in $S$. Therefore, we can simply
+compute the shift determined by the two rules, and shift $q$ at each
+step by the maximum allowed.
+
+The main Boyer-Moore algorithm, after the preprocessing stage, simply
+compares right-to-left $q$ with $S$, and when a mismatch occurs or
+when the beginning of $q$ is reached, computes the shift according to
+the two rules.
+
+\section{Implementation}
+\label{sec:implementation-1}
+
+\subsection{Bad character rule preprocessing}
+\label{sec:bad-character-rule-1}
+
+\begin{minted}{java}
+    /* This method implements the "bad character rule":
+     * it computes an array (or here, a HashMap) of positions of each character
+     * of the alphabet.
+     */
+    public static Map<Character, ArrayList<Integer>> badCharacterRule (String q) {
+        int m = q.length();
+
+        // We use a HashMap that associates to each character a list of its positions
+        // in the String q.
+        Map<Character, ArrayList<Integer>> r = new HashMap<Character, ArrayList<Integer>>();
+
+        for (int i=m-1; i>=0; i--) {
+            // For each character in q, if it is the first time we encounter it,
+            // we create a List to hold its position.
+            if (r.get(q.charAt(i)) == null) {
+                r.put(q.charAt(i), new ArrayList<Integer>());
+            }
+            r.get(q.charAt(i)).add(i);
+        }
+        return r;
+    }
+\end{minted}
+
+In this implementation, we do not compute an array: we do not know
+what the length of the alphabet will be, and we wanted to extend the
+search to the largest charset possible. (This implementation should
+work fine with any UTF-8 character.) Moreover, it is more
+space-efficient not to declare an array the size of the alphabet if
+only a few characters are actually used in the pattern.
+
+Therefore, we implemented the rule using a
+\mintinline{java}|HashMap<Character, ArrayList<Integer>>| instead of
+an array, which allows us to append cheaply and easily its position to
+the list corresponding to a character.
+
+We use \mintinline{java}|ArrayList| instead of
+\mintinline{java}|LinkedList| because we will later need to go through
+the list (cf.~Section~\ref{sec:computing-shift}), and it is more
+convenient to access directly the $j$-th element rather than popping
+and pushing things around. (Accessing an element of an
+\mintinline{java}|ArrayList| runs in amortized constant time, whereas
+with \mintinline{java}|LinkedList| it runs in linear
+time\footnote{\url{https://docs.oracle.com/javase/8/docs/api/java/util/ArrayList.html}}.)
+
+\subsection{Good suffix rule preprocessing}
+\label{sec:good-suffix-rule-1}
+
+To implement the good suffix rule, we need to compute two arrays. The
+first one, \mintinline{java}|f|, stores in its $i$-th cell the
+beginning of the rightmost copyof the suffix beginning at $i$ (case
+1.1). The second one, \mintinline{java}|l|, stores the \emph{borders}
+of $q$, that is, \mintinline{java}|l[i]| stores the beginning of the
+largest suffix of $q[i..m-1]$ which is also a prefix of $q$. It is
+needed in cases 1.2 and 2.1 (when there was an occurrence of $q$ in
+$S$).
+
+To compute them, we use a list called \mintinline{java}|suffixCopies|,
+which holds the indexes of the copies of the current suffix.
+
+Then we loop through $q$ from right to left. We begin by testing,
+using the last (leftmost) element of \mintinline{java}|suffixCopies|,
+whether the current suffix is a prefix, and if that is the case, we
+complete \mintinline{java}|l[i]| accordingly:
+
+\begin{minted}{java}
+            // if the leftmost copy is a prefix, we add it to the array l.
+            if (suffixCopies.size() > 0 && suffixCopies.get(suffixCopies.size()-1) == 0) {
+                l[i] = i;
+            }
+            else { // otherwise the previous suffix is still the best border available:
+                l[i] = l[i+1];
+            }
+\end{minted}
+
+Then comes the update of \mintinline{java}|suffixCopies| in order to
+complete \mintinline{java}|f|.
+
+For each copy in \mintinline{java}|suffixCopies|, if the character on
+its left is equal to the character on the left of the suffix, it
+remains a copy. Otherwise, it is not a copy anymore, so we remove it,
+but we can fill \mintinline{java}|f[i]| with its position:
+
+\begin{minted}{java}
+            // We go through suffixCopies, starting at the end
+            for (int j=suffixCopies.size()-1; j>=0; j--) {
+                // We retrieve the index of the copy of the current suffix
+                int k = suffixCopies.get(j);
+                // If k==0, this copy is useless now, we can remove it.
+                if (k == 0) {
+                    suffixCopies.remove(j);
+                }
+                // If the next characters (on the left) are not the same,
+                else if (q.charAt(k-1) != q.charAt(i-1)) {
+                    // we put the link to the copy in the result array
+                    f[i] = k;
+                    // and we delete this index, since it isn't a correct copy anymore.
+                    suffixCopies.remove(j);
+                }
+                else if (q.charAt(k-1) == q.charAt(i-1)) {
+                    // If the characters on the left are the same,
+                    // we add the next character to the copy.
+                    suffixCopies.set(j, k-1);
+                }
+            }
+\end{minted}
+
+At the end, we need to return both \mintinline{java}|f| and
+\mintinline{java}|l|. To avoid declaring them as global variables, we
+return an
+\mintinline{java}|Object[]{f,l}|\footnote{\url{http://stackoverflow.com/questions/6337075/return-two-arrays-in-a-method-in-java}}.
+
+\subsection{Computing the shift}
+\label{sec:computing-shift}
+
+We define a method \mint{java}|int shift(String q, Map<Character,
+ArrayList<Integer>> r, int[] f, int[] l, int i)| that computes the
+shift according to the two rules.
+
+First, we go through the list of positions of the current character to
+find its nearest sibling on its left:
+
+\begin{minted}{java}
+        // Bad character rule
+        // This list contains all the positions of the character at i in q.
+        ArrayList<Integer> positions = r.get(q.charAt(i));
+        // We retrieve the first position of this character before i:
+        int j = 0;
+        while (j < positions.size() && positions.get(j) >= i) {
+            j++;
+        }
+        // If such a position exists (i.e. we have not reached the end of the list)
+        // we set the shift to i-j.
+        if (j < positions.size()) {
+            //System.out.println(positions.get(j));
+            bcrule = i-positions.get(j);
+        }
+        // Otherwise, the character does not appear anywhere
+        // in the substring left of position i.
+        // We can shift the pattern past the character at hand.
+        else {
+            bcrule = i;
+        }
+\end{minted}
+
+Then, we apply the algorithm described in
+Section~\ref{sec:good-suffix-rule} to get the shift for the good
+suffix rule:
+
+\begin{minted}{java}
+        // Good suffix rule
+        // Case 1: The suffix beginning at i has a copy,
+        // which begins at f[i].
+        if (f[i] >= 0) {
+            gsrule = i - f[i];
+        }
+        // Case 2: The suffix has no copy in the pattern:
+        // we look for the longest of its suffixes
+        // which is also a prefix.
+        else if (l[i] >= 0) {
+            gsrule = l[i];
+        }
+        // Case 3: everything else has failed, we shift the pattern
+        // by m places.
+        else {
+            gsrule = m;
+        }
+\end{minted}
+
+And we return the maximum of the two computed shifts.
+
+\subsection{Boyer-Moore main part}
+\label{sec:boyer-moore-main}
+
+After the preprocessing stage, the rest of the algorithm is completely
+straightforward: we compare $q$ to the current substring of $S$ from
+right to left, and we shift by the good amount when we encounter a
+mismatch or the beginning of $q$.
+
+\begin{minted}{java}
+        int k = m-1;
+        // Until we reach the end of the text:
+        while (k < n) {
+            int i = m-1;
+            int h = k;
+            // We compare the text to the pattern, from right to left.
+            while (i >= 0 && s.charAt(h) == q.charAt(i)) {
+                h--; i--;
+            }
+            // If we have reached the beginning of the pattern, we have found a match.
+            if (i == -1) {
+                res.add(k-m+1);
+                // Shift by the biggest suffix which is also a prefix:
+                if (l[1] >= 0) {
+                    k = k + l[1];
+                }
+                // Or shift completely the pattern.
+                else {
+                    k = k + m + 1;
+                }
+            }
+            else {
+                // If the first character was different, we shift only by one place.
+                if (i+1 == m) {
+                    k++;
+                }
+                // Otherwise, we use the shift method.
+                else {
+                    k = k + shift(q, r, f, l, i+1);
+                }
+            }
+        }
+\end{minted}
+
+\section{Test and performance analysis}
+\label{sec:test-perf-analys-1}
+
+Theoretically, and though we don't prove it here, Boyer-Moore runs in
+linear time $\mathcal{O}(m+n)$. In worst-case complexity, it is equivalent to
+Knuth-Morris-Pratt.
+
+By testing on various examples the performances of Boyer-Moore against
+Knuth-Morris-Pratt, we do not observe a significant difference when we
+get to very long patterns.
+
+For instance, for the same 1574-character pattern on the same
+\emph{aspergillus fumigatus} genome, on the same computer, we get a
+ratio of $1/4$ in computing time:
+
+\begin{minted}{text}
+********** Knuth-Morris-Pratt **********
+Result: [29218957]
+Time: 213 ms
+****************************************
+
+********** Boyer-Moore **********
+Result: [29218957]
+Time: 53 ms
+********************************
+\end{minted}
+
+However, when the size of the alphabet grows, the Boyer-Moore
+algorithm gets better. That is because it is based on character and
+suffix repetitions. In a short alphabet, characters and substrings
+occurs very frequently in the pattern, thus reducing the shifts made
+by Boyer-Moore.
+
+This algorithm outperforms Knuth-Morris-Pratt mainly when the alphabet
+is huge (so the characters don't occur frequently) and when there are
+few repetitions of the same substrings. Typically, Boyer-Moore is
+ill-suited when it comes to DNA-matching.
+
+
+\chapter{Conclusion}
+\label{cha:conclusion}
+
+As we have seen, none of the algorithms we implemented is universally
+better than the others. Although the Boyer-Moore algorithm is the most
+advanced and polyvalent of the three, both Karp-Rabin and
+Knuth-Morris-Pratt have their uses. In the context of short patterns
+with rare occurences, Karp-Rabin is extremely fast independently from
+the size of the alphabet. The Knuth-Morris-Pratt algorithm is an
+excellent compromise between simplicity and performance. While
+Boyer-Moore is quite long to write and requires subtle thinking,
+Knuth-Morris-Pratt is straightforward and can requires relatively few
+lines of code; and matches the performance of Boyer-Moore in many
+cases.
+
+We have seen that Knuth-Morris-Pratt is better for short alphabets,
+while Boyer-Moore may be more efficient with longer alphabets (e.g.\
+for English text).
+
+As such, based on the properties of the alphabet, the text and the
+query, all three algorithms are worth considering when searching for a
+pattern in a text. It all boils down to a question of compromises
+rather than of one algorithm being intrisincally better than all of
+the others.
+
+Another category of algorithms worth mentioning is Ukkonen and Weiner,
+both based on a new data structure called \emph{suffix trees}. Suffix
+trees allow to look for a pattern in a text in $\mathcal{O}(m+n)$
+time, like Knuth-Morris-Pratt and Boyer-Moore, but this time the
+preprocessing (i.e.\ the building of the tree) is linear in the length
+of the \emph{text}, while the search is linear in the length of the
+\emph{pattern}. This allows for very fast searching of a multitude of
+patterns in a single text. Ukkonen's and Weiner's algorithm allows one
+to build such suffix trees in linear time.
+
+
+%% Bibliographie
+
+\nocite{*}
+\bibliographystyle{alpha}
+\bibliography{report}
+\label{cha:bibliography}
+
+
+\end{document}
+
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
