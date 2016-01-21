@@ -48,7 +48,7 @@ public class Main {
 
         String res = "Naive\n";
         for (int i=0; i<4; i++) {
-            res += NaiveTimes[i][0] + " && " + NaiveTimes[i][1] + " \\\\ \n";
+            res += NaiveTimes[i][0] + " & " + NaiveTimes[i][1] + " \\\\ \n";
         }
 
         res += "\n\n";
@@ -66,7 +66,7 @@ public class Main {
 
         res += "Knuth-Morris-Pratt\n";
         for (int i=0; i<4; i++) {
-            res += KMPTimes[i][0] + " && " + KMPTimes[i][1] + " \\\\ \n";
+            res += KMPTimes[i][0] + " & " + KMPTimes[i][1] + " \\\\ \n";
         }
 
         res += "\n\n";
@@ -84,7 +84,7 @@ public class Main {
 
         res += "Boyer-Moore\n";
         for (int i=0; i<4; i++) {
-            res += BMTimes[i][0] + " && " + BMTimes[i][1] + " \\\\ \n";
+            res += BMTimes[i][0] + " & " + BMTimes[i][1] + " \\\\ \n";
         }
 
         System.out.println(res);
