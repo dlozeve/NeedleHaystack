@@ -1,0 +1,337 @@
+\documentclass{beamer}
+
+\input{preamble}
+
+\usetheme{Pittsburgh}
+\setbeamertemplate{footline}[frame number]
+
+% \usebackgroundtemplate%
+% {%
+%     \includegraphics[width=\paperwidth,height=\paperheight]{images/background.jpg}%
+% }
+
+\begin{document}
+
+
+\begin{frame}
+  \titlepage\
+\end{frame}
+
+\begin{frame}
+  \frametitle{Introduction}
+
+  \begin{block}{String matching algorithms}
+    \begin{itemize}
+    \item large amounts of \emph{text} (data science, etc.): need of
+      efficient algorithms to get meaningful \emph{information} out of
+      huge amounts of raw \emph{data}
+    \item rise of genomics (human genome sequenced in 2003): finding
+      genes, sequences, edit distances $\rightarrow$ direct
+      applications
+    \item interesting for the algorithms themselves
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Plan}
+
+  \begin{enumerate}
+  \item Presentation of the algorithms, implementation, issues
+    encountered, and tests
+    \begin{itemize}
+    \item Naive algorithm
+    \item Karp-Rabin
+    \item Knuth-Morris-Pratt
+    \item Boyer-Moore
+    \end{itemize}
+  \item Comparison and discussion
+  \end{enumerate}
+\end{frame}
+
+\section{Naive algorithm}
+\label{sec:naive-algorithm}
+
+\begin{frame}
+  \frametitle{Naive algorithm}
+  
+  \begin{block}{The most straightforward}
+    \begin{itemize}
+    \item easy to understand
+    \item easy to implement
+    \item terrible performance: $\mathcal{O}(nm)$
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{Implementation details}
+    Use of the \mintinline{java}|String.substring| method: same
+    complexity.
+  \end{block}
+  
+\end{frame}
+
+\begin{frame}
+  \frametitle{Naive algorithm: tests}
+  
+  \begin{table}[ht]
+    \centering
+    \tiny
+  \begin{tabular}{lllll}
+    \toprule[1pt]
+    & \multicolumn{2}{c}{\emph{F.\ succinogenes}} & \multicolumn{2}{c}{Tolstoy} \\
+    Pattern length & Time & Time/length & Time & Time/length \\
+    \cmidrule(r){1-1} \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    10 & 107 & 10.7 & 80 & 8 \\
+    20 & 100 & 5 & 78 & 3.9 \\
+    30 & 108 & 3.6 & 79 & 2.63 \\
+    40 & 102 & 2.55 & 90 & 2.25 \\
+    50 & 105 & 2.1 & 84 & 1.68 \\
+    60 & 99 & 1.65 & 105 & 1.75 \\
+    70 & 124 & 1.77 & 106 & 1.51 \\
+    80 & 131 & 1.64 & 119 & 1.49 \\
+    90 & 129 & 1.43 & 149 & 1.66 \\
+    100 & 122 & 1.22 & 176 & 1.76 \\
+    150 & 175 & 1.17 & 205 & 1.37 \\
+    200 & 397 & 1.99 & 299 & 1.50 \\
+    300 & 314 & 1.05 & 430 & 1.43 \\
+    400 & 624 & 1.56 & 575 & 1.44 \\
+    500 & 507 & 1.01 & 620 & 1.24 \\
+    1000 & 932 & 0.93 & 1008 & 1.008 \\
+    2000 & 1796 & 0.89 & 1748 & 0.87 \\
+    \bottomrule[1pt]
+  \end{tabular}
+  \caption{\small Naive algorithm tested on various input texts. Times are in milliseconds. Text lengths = 3 842 635 and 3 226 641.}
+\end{table}
+\end{frame}
+
+\section{Karp-Rabin}
+\label{sec:karp-rabin}
+
+\begin{frame}
+  \frametitle{Karp-Rabin}
+
+  \begin{block}{A semi-numerical algorithm}
+    \begin{itemize}
+    \item use of a \emph{hash function:}
+      \[ h(q) = \sum_{i=0}^{m-1} q_i 2^{m-i-1} \bmod w \]
+    \item based on \emph{arithmetic} instead of character comparisons
+    \item linear time without any significant preprocessing (hash
+      function only called twice)
+    \item trade-off: false matches may arise (hash function collisions)
+    \end{itemize}
+  \end{block}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Karp-Rabin: implementation and pitfalls}
+
+  \begin{itemize}
+  \item Update the hash without computing too many powers of 2
+  \item Bounded \mintinline{java}|int| type: use of
+    \mintinline{java}|java.math.BigInteger| class?
+    \begin{itemize}
+    \item[$\rightarrow$] big potential increase of running time (and
+      memory used)
+    \end{itemize}
+  \item different hash function (fewer collisions)?
+    \begin{itemize}
+    \item[$\rightarrow$] must maintain the possibility of
+      \emph{updating} the hash, not recomputing it each time we shift
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Karp-Rabin: tests}
+  
+  \begin{block}{Search of \texttt{"ATATCTAACT"} in \emph{A.\ fumigatus} genome}
+    \begin{itemize}
+    \item Naive algorithm: 594~ms
+    \item Karp-Rabin: 269~ms
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{Search of \texttt{"trying"} in Tolstoy's \emph{War and Peace}}
+    \begin{itemize}
+    \item Naive algorithm: 62~ms
+    \item Karp-Rabin: 38~ms
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+
+\section{Knuth-Morris-Pratt}
+\label{sec:knuth-morris-pratt}
+
+\begin{frame}
+  \frametitle{Knuth-Morris-Pratt}
+
+  \begin{block}{New approach}
+    \begin{itemize}
+    \item best-known linear-time algorithm
+    \item analyze the repetition of prefixes
+    \item complexity: preprocessing in $\mathcal{O}(m)$ and search in
+      $\mathcal{O}(n)$
+    \item complexity easily proven
+    \item same algorithm for preprocessing and search, easily
+      explained and understood
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Knuth-Morris-Pratt: tests}
+
+  \begin{table}[ht]
+    \centering
+    \begin{tabular}{lllllllll}
+      \toprule[1pt]
+      Pattern length & 10 & 20 & 50 & 100 & 200 & 500 & 1000 & 2000 \\
+      \midrule
+      Tolstoy & 33 & 28 & 27 & 28 & 28 & 29 & 27 & 28 \\
+      \emph{F.\ succinogenes} & 46 & 47 & 42 & 43 & 41 & 46 & 41 & 43 \\
+      \emph{A.\ fumigatus} & 250 & 225 & 210 & 229 & 219 & 215 & 234 & \\
+      \bottomrule[1pt]
+    \end{tabular}
+    \caption{Knuth-Morris-Pratt running time on various texts, with varying pattern length. Times in milliseconds. Text lengths = 3~226~641, 3~842~635 and 29~385~546.}
+  \end{table}
+\end{frame}
+
+
+\section{Boyer-Moore}
+\label{sec:boyer-moore}
+
+\begin{frame}
+  \frametitle{Boyer-Moore}
+
+  \begin{block}{Clever ideas}
+    \begin{itemize}
+    \item right-to-left scan
+    \item (extended) bad character shift rule: better for large
+      alphabets (e.g.\ natural languages)
+    \item (strong) good suffix shift rule: necessary for linear time,
+      better for short alphabets (e.g. DNA)
+    \item complexity: preprocessing in $\mathcal{O}(m)$, search in
+      $\mathcal{O}(n)$
+    \item complexity difficult to prove
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Boyer-Moore: issues}
+
+  \begin{block}{Difficult implementation}
+    \begin{itemize}
+    \item hard to understand (not natural)
+    \item long and difficult to implement (a lot of different cases)
+    \item necessity to split into different methods
+      (\mintinline{java}|badCharacterRule|,
+      \mintinline{java}|goodSuffixRule|, \mintinline{java}|shift|,
+      \mintinline{java}|boyermoore|)
+    \item computing the shift: easy to get lost in indexes
+    \item various data structures (array, \mintinline{java}|HashMap|,
+      \mintinline{java}|ArrayList| vs.\ \mintinline{java}|LinkedList|)
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Boyer-Moore: tests}
+
+  \begin{table}[ht]
+    \centering
+    \begin{tabular}{lllllllll}
+      \toprule[1pt]
+      Pattern length & 10 & 20 & 50 & 100 & 200 & 500 & 1000 & 2000 \\
+      \midrule
+      Tolstoy & 38 & 33 & 29 & 48 & 31 & 32 & 34 & 32 \\
+      \emph{F.\ succinogenes} & 70 & 50 & 33 & 29 & 29 & 23 & 28 & 42 \\
+      \emph{A.\ fumigatus} & 209 & 147 & 215 & 85 & 72 & 106 & 114 & \\
+      \bottomrule[1pt]
+    \end{tabular}
+    \caption{Boyer-Moore running time on various texts, with varying pattern length. Times in milliseconds. Text lengths = 3~226~641, 3~842~635 and 29~385~546.}
+  \end{table}
+\end{frame}
+
+
+\section{Comparisons}
+\label{sec:comparisons}
+
+
+\begin{frame}
+  \frametitle{Comparisons}
+
+  \begin{table}[ht]
+    \centering
+    \begin{tabular}{lcccccc}
+    \toprule[1.5pt]
+    & \multicolumn{2}{c}{Naive} & \multicolumn{2}{c}{KMP} & \multicolumn {2}{c}{Boyer-Moore} \\
+    & short & long & short & long & short & long \\
+    \cmidrule(r){1-1} \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(l){6-7}
+    Verne & 36 & 59 & 17 & 10 & 29 & 15 \\
+    Tolstoy & 77 & 131 & 15 & 11 & 47 & 6 \\
+    \emph{F.\ succinogenes} & 364 & 5329 & 28 & 28 & 13 & 11 \\
+    \emph{A.\ fumigatus} & 662 & 43739 & 205 & 214 & 139 & 85 \\
+    \bottomrule[1.5pt]
+  \end{tabular}
+  \caption{Comparisons of the most common algorithms applied to short and long patterns. Times in milliseconds.}
+\end{table}
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Comparisons}
+
+  \begin{block}{Boyer-Moore}
+    \begin{itemize}
+    \item better with long patterns
+    \item theoretically worse than KMP for small alphabets: not for
+      our implementation!
+    \item real improvement when increasing the pattern length; not so
+      much when increasing text length
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{Knuth-Morris-Pratt}
+    \begin{itemize}
+    \item much easier to understand and implement
+    \item excellent overall performance
+    \item do not perform well on DNA
+    \item possibility to turn into a \emph{real-time} string matching
+      algorithm
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Conclusion}
+
+  \begin{itemize}
+  \item Best general-case algorithm: Knuth-Morris-Pratt
+    \begin{itemize}
+    \item[$\rightarrow$] easier to implement
+    \item[$\rightarrow$] good overall performance
+    \end{itemize}
+  \item Important to understand Boyer-Moore, and when it could perform
+    better
+  \item Semi-numerical algorithms: excellent concept, useful in
+    specific situations (e.g.\ limited memory)
+  \item \emph{Suffix trees:} preprocessing in $\mathcal{O}(n)$, search
+    in $\mathcal{O}(m)$
+    \begin{itemize}
+    \item[$\rightarrow$] huge advantage when multiple searches on the
+      same text are needed (genomics).
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+
+\end{document}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
